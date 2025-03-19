@@ -1,0 +1,80 @@
+CREATE DATABASE IF NOT EXISTS EMP;
+CREATE SCHEMA IF NOT EXISTS EMP.UDFs;
+
+--Create a function to calculate annual tax of employees
+CREATE OR REPLACE FUNCTION EMP.UDFs.UDF_CAL_ANNUAL_TAX(MON_GROS_SAL INTEGER)
+RETURNS NUMBER
+LANGUAGE SQL
+AS
+
+$$
+SELECT CAST(
+CASE WHEN (MON_GROS_SAL * 12 <= 500000) THEN 0
+       WHEN ((MON_GROS_SAL * 12) between 500001 and 1000000)
+         THEN ((MON_GROS_SAL * 12) - 500000) * 10/100
+       WHEN ((MON_GROS_SAL * 12) between 1000001 and 1500000)
+         THEN ((1000000 - 500000) * 10/100) + (((MON_GROS_SAL * 12) - 1000000) * 20/100)
+       ELSE
+         ((1000000 - 500000) * 10/100) + ((1500000 - 1000000) * 20/100) + (((MON_GROS_SAL * 12) - 1500000) * 30/100)
+
+     END
+     as NUMBER(10,2)
+     )
+$$;
+
+--UPDATE MYDB.PUBLIC.EMPLOYEE SET SALARY = SALARY*10;
+
+SELECT EID, ENAME, PHONE, SALARY, UDFs.UDF_CAL_ANNUAL_TAX(salary) as ANNUAL_TAX FROM MYDB.PUBLIC.EMPLOYEE;
+
+-----------------------------
+In UDFs we can write only sql statement, but by using CTEs we can write multiple statements
+-----------------------------
+
+CREATE OR REPLACE FUNCTION EMP.PROCS.UDF_TAX_CALCULATION_NEW_REGINE(TOTAL_INCOME NUMBER(20,2), HOME_LONE_INT NUMBER(20,2), OTHER_DED NUMBER(20,2) )
+RETURNS FLOAT
+LANGUAGE SQL
+AS
+
+$$
+
+  --Here 50000 is standard deduction 
+
+WITH TA as
+(SELECT TOTAL_INCOME - (50000 + HOME_LONE_INT + OTHER_DED) as TAXABLE_AMOUNT),
+
+TAX as
+(SELECT 
+CASE WHEN (TA.TAXABLE_AMOUNT <= 300000) THEN 0
+     
+    WHEN (TA.TAXABLE_AMOUNT between 300001 and 600000)
+       THEN (TA.TAXABLE_AMOUNT - 300000) * (5/100)
+       
+    WHEN (TA.TAXABLE_AMOUNT between 600001 and 900000)
+       THEN ((600000 - 300000) * (5/100))
+            + ((TA.TAXABLE_AMOUNT - 600000) * (10/100))
+            
+    WHEN (TA.TAXABLE_AMOUNT between 900001 and 1200000)
+        THEN ((600000 - 300000) * (5/100))
+            + ((900000 - 600000) * (10/100))
+            + ((TA.TAXABLE_AMOUNT - 900000) * (15/100))
+            
+    WHEN (TA.TAXABLE_AMOUNT between 1200001 and 1500000)
+        THEN ((600000 - 300000) * (5/100))
+            + ((900000 - 600000) * (10/100))
+            + ((1200000 - 900000) * (15/100))
+            + ((TA.TAXABLE_AMOUNT - 1200000) * (20/100))
+           
+    ELSE ((600000 - 300000) * (5/100))
+            + ((900000 - 600000) * (10/100))
+            + ((1200000 - 900000) * (15/100))
+            + ((1500000 - 1200000) * (20/100))
+            + ((TA.TAXABLE_AMOUNT - 1500000) * (30/100))
+    END as TAX_AMT
+FROM TA
+)
+
+SELECT CAST(TAX_AMT as FLOAT) FROM TAX
+
+$$;
+
+SELECT EMP.PROCS.UDF_TAX_CALCULATION_NEW_REGINE(940599, 230000, 125000) as TAX;
